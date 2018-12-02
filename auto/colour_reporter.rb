@@ -24,7 +24,7 @@ def report(message)
                  :green
                when /(?:FAIL|ERROR)/
                  :red
-               when /IGNORE/
+               when /(?:IGNORE|INCONCLUSIVE)/
                  :yellow
                when /^(?:Creating|Compiling|Linking)/
                  :white

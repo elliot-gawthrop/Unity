@@ -14,7 +14,7 @@ require 'set'
 class UnityTestSummary
   include FileUtils::Verbose
 
-  attr_reader :report, :total_tests, :failures, :ignored
+  attr_reader :report, :total_tests, :failures, :ignored, :inconclusive
   attr_writer :targets, :root
 
   def initialize(_opts = {})
@@ -22,6 +22,7 @@ class UnityTestSummary
     @total_tests = 0
     @failures = 0
     @ignored = 0
+    @inconclusive = 0
   end
 
   def run
@@ -31,6 +32,7 @@ class UnityTestSummary
     # Dig through each result file, looking for details on pass/fail:
     failure_output = []
     ignore_output = []
+    inconclusive_output = []
 
     results.each do |result_file|
       lines = File.readlines(result_file).map(&:chomp)
@@ -40,10 +42,12 @@ class UnityTestSummary
       output = get_details(result_file, lines)
       failure_output << output[:failures] unless output[:failures].empty?
       ignore_output  << output[:ignores]  unless output[:ignores].empty?
-      tests, failures, ignored = parse_test_summary(lines)
+      inconclusive_output << output[:inconclusives] unless output[:inconclusives].empty?
+      tests, failures, ignored, inconclusive = parse_test_summary(lines)
       @total_tests += tests
       @failures += failures
       @ignored += ignored
+      @inconclusive += inconclusive
     end
 
     if @ignored > 0
@@ -52,6 +56,14 @@ class UnityTestSummary
       @report += "UNITY IGNORED TEST SUMMARY\n"
       @report += "--------------------------\n"
       @report += ignore_output.flatten.join("\n")
+    end
+
+    if @inconclusive > 0
+      @report += "\n"
+      @report += "-------------------------------\n"
+      @report += "UNITY INCONCLUSIVE TEST SUMMARY\n"
+      @report += "-------------------------------\n"
+      @report += inconclusive_output.flatten.join("\n")
     end
 
     if @failures > 0
@@ -66,7 +78,7 @@ class UnityTestSummary
     @report += "--------------------------\n"
     @report += "OVERALL UNITY TEST SUMMARY\n"
     @report += "--------------------------\n"
-    @report += "#{@total_tests} TOTAL TESTS #{@failures} TOTAL FAILURES #{@ignored} IGNORED\n"
+    @report += "#{@total_tests} TOTAL TESTS #{@failures} TOTAL FAILURES #{inconclusive} TOTAL INCONCLUSIVE  #{@ignored} IGNORED\n"
     @report += "\n"
   end
 
@@ -84,12 +96,13 @@ class UnityTestSummary
   protected
 
   def get_details(_result_file, lines)
-    results = { failures: [], ignores: [], successes: [] }
+    results = { failures: [], inconclusives: [], ignores: [], successes: [] }
     lines.each do |line|
       _src_file, _src_line, _test_name, status, _msg = line.split(/:/)
       line_out = (@root && (@root != 0) ? "#{@root}#{line}" : line).gsub(/\//, '\\')
       case status
       when 'IGNORE' then results[:ignores]   << line_out
+      when 'INCONCLUSIVE' then results[:inconclusives] << line_out
       when 'FAIL'   then results[:failures]  << line_out
       when 'PASS'   then results[:successes] << line_out
       end
@@ -98,8 +111,8 @@ class UnityTestSummary
   end
 
   def parse_test_summary(summary)
-    raise "Couldn't parse test results: #{summary}" unless summary.find { |v| v =~ /(\d+) Tests (\d+) Failures (\d+) Ignored/ }
-    [Regexp.last_match(1).to_i, Regexp.last_match(2).to_i, Regexp.last_match(3).to_i]
+    raise "Couldn't parse test results: #{summary}" unless summary.find { |v| v =~ /(\d+) Tests (\d+) Failures (\d+) Ignored (\d+) Inconclusive/ }
+    [Regexp.last_match(1).to_i, Regexp.last_match(2).to_i, Regexp.last_match(3).to_i, Regexp.last_match(4).to_i]
   end
 end
 

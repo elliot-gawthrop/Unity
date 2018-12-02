@@ -19,8 +19,10 @@ build step in your Eclipse project settings.
 
 Unity unit test error parsers
 -----------------------------
-Severity    Pattern                                 File    Line    Description
--------------------------------------------------------------------------------
-Error       (\.+)(.*?):(\d+):(.*?):FAIL: (.*)       $2      $3      $5
-Warning     (\.+)(.*?):(\d+):(.*?):IGNORE: (.*)     $2      $3      $5
-Warning     (\.+)(.*?):(\d+):(.*?):IGNORE\s*$       $2      $3      Ignored test
+Severity    Pattern                                     File    Line    Description
+-----------------------------------------------------------------------------------
+Error       (\.+)(.*?):(\d+):(.*?):FAIL: (.*)           $2      $3      $5
+Warning     (\.+)(.*?):(\d+):(.*?):IGNORE: (.*)         $2      $3      $5
+Warning     (\.+)(.*?):(\d+):(.*?):IGNORE\s*$           $2      $3      Ignored test
+Warning     (\.+)(.*?):(\d+):(.*?):INCONCLUSIVE: (.*)   $2      $3      $5
+Warning     (\.+)(.*?):(\d+):(.*?):INCONCLUSIVE\s*$     $2      $3      Inconclusive test

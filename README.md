@@ -222,6 +222,16 @@ Memory Assertions
 Compare two blocks of memory.  This is a good generic assertion for types that can't be coerced into acting like
 standard types... but since it's a memory compare, you have to be careful that your data types are packed.
 
+Assumptions
+-----------
+
+    TEST_ASSUME_TRUE(condition)
+    TEST_ASSUME_EQUAL_INT(expected, actual)
+    TEST_ASSUME_FLOAT_WITHIN(delta, expected, actual)
+
+You can replace `_ASSERT` in any of the macros with `_ASSUME` in order to express the intent that a given condition is required in order for the result of the test to be valid. If the assumption is not true, control will immediately be returned to the caller of the test, and the test will be marked as inconclusive.
+
+
 _MESSAGE
 --------
 

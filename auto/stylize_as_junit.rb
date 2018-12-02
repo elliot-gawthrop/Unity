@@ -66,7 +66,7 @@ end
 
 class UnityToJUnit
   include FileUtils::Verbose
-  attr_reader :report, :total_tests, :failures, :ignored
+  attr_reader :report, :total_tests, :failures, :ignored, :inconclusive
   attr_writer :targets, :root, :out_file
 
   def initialize
@@ -87,11 +87,12 @@ class UnityToJUnit
       raise "Empty test result file: #{result_file}" if lines.empty?
 
       result_output = get_details(result_file, lines)
-      tests, failures, ignored = parse_test_summary(lines)
+      tests, failures, ignored, inconclusive = parse_test_summary(lines)
       result_output[:counts][:total] = tests
       result_output[:counts][:failed] = failures
       result_output[:counts][:ignored] = ignored
-      result_output[:counts][:passed] = (result_output[:counts][:total] - result_output[:counts][:failed] - result_output[:counts][:ignored])
+      result_output[:counts][:inconclusive] = inconclusive
+      result_output[:counts][:passed] = (result_output[:counts][:total] - result_output[:counts][:failed] - result_output[:counts][:ignored] - result_output[:counts][:inconclusive])
 
       # use line[0] from the test output to get the test_file path and name
       test_file_str = lines[0].tr('\\', '/')
@@ -110,6 +111,7 @@ class UnityToJUnit
       write_suite_header(result_output[:counts], f)
       write_failures(result_output, f)
       write_tests(result_output, f)
+      write_inconclusive(result_output, f)
       write_ignored(result_output, f)
       write_suite_footer(f)
     end
@@ -143,6 +145,7 @@ class UnityToJUnit
       _src_file, src_line, test_name, status, msg = line.split(/:/)
       case status
       when 'IGNORE' then results[:ignores] << { test: test_name, line: src_line, message: msg }
+      when 'INCONCLUSIVE' then results[:inconclusives] << { test: test_name, line: src_line, message: msg }
       when 'FAIL'   then results[:failures] << { test: test_name, line: src_line, message: msg }
       when 'PASS'   then results[:successes] << { test: test_name, line: src_line, message: msg }
       end
@@ -151,8 +154,8 @@ class UnityToJUnit
   end
 
   def parse_test_summary(summary)
-    raise "Couldn't parse test results: #{summary}" unless summary.find { |v| v =~ /(\d+) Tests (\d+) Failures (\d+) Ignored/ }
-    [Regexp.last_match(1).to_i, Regexp.last_match(2).to_i, Regexp.last_match(3).to_i]
+    raise "Couldn't parse test results: #{summary}" unless summary.find { |v| v =~ /(\d+) Tests (\d+) Failures (\d+) Ignored (\d+) Inconclusive/ }
+    [Regexp.last_match(1).to_i, Regexp.last_match(2).to_i, Regexp.last_match(3).to_i, Regexp.last_match(4)]
   end
 
   private
@@ -162,8 +165,9 @@ class UnityToJUnit
       source: { path: '', file: '' },
       successes: [],
       failures: [],
+      inconclusives: [],
       ignores: [],
-      counts: { total: 0, passed: 0, failed: 0, ignored: 0 },
+      counts: { total: 0, passed: 0, failed: 0, ignored: 0, inconclusive: 0 },
       stdout: []
     }
   end
@@ -177,7 +181,7 @@ class UnityToJUnit
   end
 
   def write_suite_header(counts, stream)
-    stream.puts "\t<testsuite errors=\"0\" skipped=\"#{counts[:ignored]}\" failures=\"#{counts[:failed]}\" tests=\"#{counts[:total]}\" name=\"unity\">"
+    stream.puts "\t<testsuite errors=\"0\" skipped=\"#{counts[:ignored] + counts[:inconclusive]}\" failures=\"#{counts[:failed]}\" tests=\"#{counts[:total]}\" name=\"unity\">"
   end
 
   def write_failures(results, stream)
@@ -210,6 +214,18 @@ class UnityToJUnit
     end
   end
 
+  def write_inconclusive(results, stream)
+    result = results[:inconclusives]
+    result.each do |item|
+      filename = File.join(results[:source][:path], File.basename(results[:source][:file], '.*'))
+      puts "Writing inconclusive tests for test harness: #{filename}"
+      stream.puts "\t\t<testcase classname=\"#{@unit_name}\" name=\"#{item[:test]}\" time=\"0\">"
+      stream.puts "\t\t\t<skipped message=\"#{item[:message]}\" type=\"Assertion\"/>"
+      stream.puts "\t\t\t<system-err>&#xD;[File] #{filename}&#xD;[Line] #{item[:line]}&#xD;</system-err>"
+      stream.puts "\t\t</testcase>"
+    end
+  end
+  
   def write_suite_footer(stream)
     stream.puts "\t</testsuite>"
   end

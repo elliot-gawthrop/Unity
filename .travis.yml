@@ -27,3 +27,4 @@ script:
   - cd ../../../examples/example_1 && make -s ci
   - cd ../example_2 && make -s ci
   - cd ../example_3 && rake
+  - cd ../example_4 && rake

@@ -38,6 +38,7 @@ class ParseOutput
     @test_passed  = 0
     @test_failed  = 0
     @test_ignored = 0
+    @test_inconclusive = 0
   end
 
   # Set the flag to indicate if there will be an XML output file or not
@@ -57,7 +58,7 @@ class ParseOutput
   # Pushes the suite info as xml to the array list, which will be written later
   def push_xml_output_suite_info
     # Insert opening tag at front
-    heading = '<testsuite name="Unity" tests="' + @total_tests.to_s + '" failures="' + @test_failed.to_s + '"' + ' skips="' + @test_ignored.to_s + '">'
+    heading = '<testsuite name="Unity" tests="' + @total_tests.to_s + '" failures="' + @test_failed.to_s + '"' + ' skips="' + (@test_ignored + @test_inconclusive).to_s + '">'
     @array_list.insert(0, heading)
     # Push back the closing tag
     @array_list.push '</testsuite>'
@@ -79,6 +80,13 @@ class ParseOutput
   def push_xml_output_ignored(test_name, reason)
     @array_list.push '    <testcase classname="' + @test_suite + '" name="' + test_name + '">'
     @array_list.push '        <skipped type="TEST IGNORED">' + reason + '</skipped>'
+    @array_list.push '    </testcase>'
+  end
+
+  # Pushes xml output data to the array list, which will be written later
+  def push_xml_output_inconclusive(test_name, reason)
+    @array_list.push '    <testcase classname=' + @test_suite + '" name="' + test_name + '">'
+    @array_list.push '        <skipped type="TEST INCONCLUSIVE">' + reason + '</skipped>'
     @array_list.push '    </testcase>'
   end
 
@@ -133,6 +141,20 @@ class ParseOutput
     push_xml_output_failed(test_name, reason) if @xml_out
   end
 
+  # Test was flagged as being inconclusive so format the output.
+  # This is using the Unity fixture output and not the original Unity output.
+  def test_inconclusive_unity_fixture(array)
+    class_name = array[0]
+    test_name  = array[1]
+    test_suite_verify(class_name)
+    reason_array = array[2].split(':')
+    reason = reason_array[-1].lstrip.chomp + ' at line: ' + reason_array[-4]
+
+    printf "%-40s INCONCLUSIVE\n", test_name
+
+    push_xml_output_inconclusive(test_name, reason) if @xml_out
+  end
+
   # Test was flagged as being ignored so format the output.
   # This is using the Unity fixture output and not the original Unity output.
   def test_ignored_unity_fixture(array)
@@ -183,6 +205,29 @@ class ParseOutput
     printf "%-40s FAILED\n", test_name
 
     push_xml_output_failed(test_name, reason) if @xml_out
+  end
+
+  # Test was flagged as being inconclusive so format the line
+  def test_inconclusive(array)
+    last_item = array.length - 1
+    test_name = array[last_item - 2]
+    reason = array[last_item].chomp.lstrip + ' at line: ' + array[last_item - 3]
+    class_name = array[@class_name_idx]
+
+    if test_name.start_with? 'TEST('
+      array2 = test_name.split(' ')
+
+      test_suite = array2[0].sub('TEST(', '')
+      test_suite = test_suite.sub(',', '')
+      class_name = test_suite
+
+      test_name = array2[1].sub(')', '')
+    end
+
+    test_suite_verify(class_name)
+    printf "%-40s INCONCLUSIVE\n", test_name
+
+    push_xml_output_inconclusive(test_name, reason) if @xml_out
   end
 
   # Test was flagged as being ignored so format the output
@@ -273,6 +318,9 @@ class ParseOutput
         elsif line.include? 'IGNORE'
           test_ignored_unity_fixture(line_array)
           @test_ignored += 1
+        elsif line.include? 'INCONCLUSIVE'
+          test_inconclusive_unity_fixture(line_array)
+          @test_inconclusive += 1
         end
       # normal output / fixture output (without verbose "-v")
       elsif line.include? ':PASS'
@@ -288,15 +336,19 @@ class ParseOutput
         line_array.push('No reason given')
         test_ignored(line_array)
         @test_ignored += 1
+      elsif line.include? ':INCONCLUSIVE'
+        test_inconclusive(line_array)
+        @test_inconclusive += 1
       end
-      @total_tests = @test_passed + @test_failed + @test_ignored
+      @total_tests = @test_passed + @test_failed + @test_ignored + @test_inconclusive
     end
     puts ''
     puts '=================== SUMMARY ====================='
     puts ''
-    puts 'Tests Passed  : ' + @test_passed.to_s
-    puts 'Tests Failed  : ' + @test_failed.to_s
-    puts 'Tests Ignored : ' + @test_ignored.to_s
+    puts 'Tests Passed       : ' + @test_passed.to_s
+    puts 'Tests Failed       : ' + @test_failed.to_s
+    puts 'Tests Inconclusive : ' + @test_inconclusive.to_s
+    puts 'Tests Ignored      : ' + @test_ignored.to_s
 
     return unless @xml_out
 
